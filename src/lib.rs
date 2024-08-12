@@ -1,16 +1,57 @@
-#![no_main]
-#![no_std]
-// #![cfg_attr(not(feature = "export-abi"), no_main)]
 extern crate alloc;
+mod erc721;
+use alloc::format;
+use erc721::{ERC721Params, ERC721};
 
-#[global_allocator]
-static ALLOC: mini_alloc::MiniAlloc = mini_alloc::MiniAlloc::INIT;
+use stylus_sdk::{alloy_primitives::U256, msg, prelude::*};
 
-use alloc::vec::Vec;
+pub struct ERC721MockParams;
 
-use stylus_sdk::stylus_proc::entrypoint;
+/// Immutable definitions
+impl ERC721Params for ERC721MockParams {
+    const NAME: &'static str = "ERC721 Stylus Example";
+    const SYMBOL: &'static str = "MOCK";
 
-#[entrypoint]
-fn user_main(input: Vec<u8>) -> Result<Vec<u8>, Vec<u8>> {
-    Ok(input)
+    fn token_uri(token_id: U256) -> String {
+        format!(
+            "ipfs://QmZcH4YvBVVRJtdn4RdbaqgspFU8gH6P9vomDpBVpAL3u4/{}",
+            token_id
+        )
+    }
+}
+
+sol_storage! {
+    #[entrypoint] // Makes ERC721Mock the entrypoint
+    pub struct ERC721Mock {
+        #[borrow]
+        ERC721<ERC721MockParams> erc721;
+        uint256 total_supply;
+    }
+}
+
+#[external]
+#[inherit(ERC721<ERC721MockParams>)]
+impl ERC721Mock {
+    pub fn total_supply(&self) -> U256 {
+        self.total_supply.get()
+    }
+
+    pub fn mint_loop(&mut self, qty: U256) -> Result<(), Vec<u8>> {
+        let supply = self.total_supply.get();
+        let supply: u32 = supply.try_into().unwrap();
+        let qty: u32 = qty.try_into().unwrap();
+
+        for i in 0..qty.try_into().unwrap() {
+            self.erc721._mint(msg::sender(), U256::from(supply + i))?;
+        }
+        self.total_supply.set(U256::from(supply + qty));
+        Ok(())
+    }
+
+    pub fn burn(&mut self, token_id: U256) -> Result<(), Vec<u8>> {
+        self.erc721._burn(token_id)?;
+        let supply = self.total_supply.get();
+        self.total_supply.set(supply - U256::from(1));
+        Ok(())
+    }
 }
