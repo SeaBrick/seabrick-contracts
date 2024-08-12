@@ -1,5 +1,5 @@
 [workspace]
-members = ["erc721", "seabrick"]
+members = ["erc721", "contract"]
 resolver = "2"
 
 [workspace.dependencies]
