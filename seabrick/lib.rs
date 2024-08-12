@@ -1,5 +1,6 @@
 extern crate alloc;
-mod erc721;
+extern crate erc721;
+
 use alloc::format;
 use erc721::{ERC721Params, ERC721};
 
