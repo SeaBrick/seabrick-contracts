@@ -6,8 +6,12 @@
 //! This contract use as base inkmate from his 0.0.6 version
 //! https://github.com/cygaar/inkmate/blob/main/contracts/src/tokens/erc721.rs
 //!
+#![cfg_attr(not(feature = "export-abi"), no_std, no_main)]
 
 extern crate alloc;
+
+#[global_allocator]
+static ALLOC: mini_alloc::MiniAlloc = mini_alloc::MiniAlloc::INIT;
 
 use alloc::{string::String, vec, vec::Vec};
 use core::{borrow::BorrowMut, marker::PhantomData};
@@ -16,7 +20,9 @@ use stylus_sdk::{
     alloy_primitives::{Address, U256},
     alloy_sol_types::sol,
     evm, msg,
-    prelude::*,
+    prelude::{external, sol_interface, sol_storage, SolidityError},
+    storage::TopLevelStorage,
+    types::AddressVM,
 };
 
 pub trait ERC721Params {

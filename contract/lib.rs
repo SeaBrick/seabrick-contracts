@@ -1,10 +1,17 @@
+#![cfg_attr(not(feature = "export-abi"), no_std, no_main)]
+
 extern crate alloc;
 extern crate erc721;
 
 use alloc::format;
 use erc721::{ERC721Params, ERC721};
 
-use stylus_sdk::{alloy_primitives::U256, msg, prelude::*};
+use alloc::{string::String, vec, vec::Vec};
+use stylus_sdk::{
+    alloy_primitives::U256,
+    msg,
+    prelude::{entrypoint, external, sol_storage},
+};
 
 pub struct ERC721MockParams;
 
