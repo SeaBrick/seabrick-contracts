@@ -1,7 +1,11 @@
 [package]
-name = "contract"
+name = "seabrick_nft"
 version = "0.0.1"
 edition = "2021"
+
+[[bin]]
+name = "seabrick_nft"
+path = "./main.rs"
 
 [lib]
 crate-type = ["lib", "cdylib"]
