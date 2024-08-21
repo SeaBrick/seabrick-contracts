@@ -13,12 +13,6 @@ alloy-primitives = { workspace = true }
 alloy-sol-types = { workspace = true }
 stylus-sdk = { workspace = true }
 mini-alloc = { workspace = true }
-hex = { workspace = true }
-
-[dev-dependencies]
-tokio = { workspace = true }
-ethers = { workspace = true }
-eyre = { workspace = true }
 
 [features]
 export-abi = ["stylus-sdk/export-abi"]
