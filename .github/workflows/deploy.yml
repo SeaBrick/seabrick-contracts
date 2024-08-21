@@ -1,5 +1,4 @@
-name: Rust CI
-
+name: Deploy
 on:
   push:
     branches:
@@ -8,7 +7,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  build:
+  deploy:
     runs-on: ubuntu-latest
 
     steps:
@@ -26,5 +25,7 @@ jobs:
       - name: Install Cargo Stylus
         run: cargo install --force cargo-stylus cargo-stylus-check
 
-      - name: Run Cargo plugin
-        run: cargo stylus check
+      - name: Deploy the contract
+        env:
+          PRIVATE_KEY: ${{ secrets.PRIVATE_KEY }}
+        run: cargo stylus deploy --private-key=$PRIVATE_KEY
