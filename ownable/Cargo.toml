@@ -1,19 +1,13 @@
 [package]
-name = "seabrick_nft"
+name = "ownable"
 version = "0.0.1"
 edition = "2021"
-
-[[bin]]
-name = "seabrick_nft"
-path = "./main.rs"
 
 [lib]
 crate-type = ["lib", "cdylib"]
 path = "./lib.rs"
 
 [dependencies]
-erc721 = { path = "../erc721" }
-ownable = { path = "../ownable" }
 alloy-primitives = { workspace = true }
 alloy-sol-types = { workspace = true }
 stylus-sdk = { workspace = true }

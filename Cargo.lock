@@ -2130,6 +2130,20 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "04744f49eae99ab78e0d5c0b603ab218f515ea8cfe5a456d7629ad883a3b6e7d"
 
 [[package]]
+name = "ownable"
+version = "0.0.1"
+dependencies = [
+ "alloy-primitives",
+ "alloy-sol-types",
+ "ethers",
+ "eyre",
+ "hex",
+ "mini-alloc",
+ "stylus-sdk",
+ "tokio",
+]
+
+[[package]]
 name = "parity-scale-codec"
 version = "3.6.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2939,6 +2953,7 @@ dependencies = [
  "eyre",
  "hex",
  "mini-alloc",
+ "ownable",
  "stylus-sdk",
  "tokio",
 ]
