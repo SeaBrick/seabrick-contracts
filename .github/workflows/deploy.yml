@@ -1,0 +1,31 @@
+name: Deploy
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+
+      - name: Install wasm32 target
+        run: rustup target add wasm32-unknown-unknown
+
+      - name: Install Cargo Stylus
+        run: cargo install --force cargo-stylus cargo-stylus-check
+
+      - name: Deploy the contract
+        env:
+          PRIVATE_KEY: ${{ secrets.PRIVATE_KEY }}
+        run: cargo stylus deploy --private-key=$PRIVATE_KEY
