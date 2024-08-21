@@ -2,10 +2,12 @@
 
 extern crate alloc;
 extern crate erc721;
+extern crate initialization;
 extern crate ownable;
 
 use alloc::{format, string::String, vec, vec::Vec};
 use erc721::{ERC721Params, ERC721};
+use initialization::Initialization;
 use ownable::Ownable;
 use stylus_sdk::{
     alloy_primitives::{Address, U256},
@@ -37,6 +39,8 @@ sol_storage! {
         ERC721<SeabrickParams> erc721;
         #[borrow]
         Ownable ownable;
+        #[borrow]
+        Initialization init;
         uint256 total_supply;
     }
 }
@@ -44,6 +48,19 @@ sol_storage! {
 #[external]
 #[inherit(ERC721<SeabrickParams>, Ownable)]
 impl Seabrick {
+    pub fn initialization(&mut self, owner: Address) -> Result<(), Vec<u8>> {
+        // Check if already init. Revert if already init
+        self.init._check_init()?;
+
+        // Set contract owner
+        self.ownable._owner.set(owner);
+
+        // Change contract state to already initialized
+        self.init.is_init.set(true);
+
+        Ok(())
+    }
+
     pub fn total_supply(&self) -> U256 {
         self.total_supply.get()
     }

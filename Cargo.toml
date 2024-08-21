@@ -1,5 +1,10 @@
 [workspace]
-members = ["contracts/erc721", "contracts/seabrick_nft", "contracts/ownable"]
+members = [
+    "contracts/erc721",
+    "contracts/seabrick_nft",
+    "contracts/ownable",
+    "contracts/initialization",
+]
 resolver = "2"
 
 [workspace.dependencies]
