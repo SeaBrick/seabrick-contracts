@@ -4,7 +4,7 @@ members = [
     "contracts/seabrick_nft",
     "contracts/ownable",
     "contracts/initialization",
-    # "contracts/market_seabrick",
+    "contracts/market_seabrick",
 ]
 resolver = "2"
 
