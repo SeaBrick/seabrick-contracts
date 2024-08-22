@@ -2,7 +2,7 @@ name: linux
 on:
   push:
     branches:
-      - master
+      - main
   pull_request:
   workflow_dispatch:
 
@@ -14,21 +14,19 @@ jobs:
       CFG_RELEASE_CHANNEL: ${{ matrix.cfg_release_channel }}
     strategy:
       matrix:
-        target: [
-          wasm32-unknown-unknown
-        ]
+        target: [wasm32-unknown-unknown]
         cfg_release_channel: [nightly, stable]
 
     steps:
-    - name: checkout
-      uses: actions/checkout@v3
+      - name: checkout
+        uses: actions/checkout@v3
 
-      # Run build
-    - name: install rustup
-      run: |
-        curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs > rustup-init.sh
-        sh rustup-init.sh -y --default-toolchain none
-        rustup target add ${{ matrix.target }}
+        # Run build
+      - name: install rustup
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs > rustup-init.sh
+          sh rustup-init.sh -y --default-toolchain none
+          rustup target add ${{ matrix.target }}
 
-    - name: Build and Test
-      run: ./ci/build.sh
+      - name: Build and Test
+        run: ./ci/build.sh
