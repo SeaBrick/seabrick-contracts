@@ -101,9 +101,9 @@ impl Seabrick {
     }
 
     pub fn mint(&mut self, to: Address) -> Result<(), TokenError> {
-        // if let Err(_) = self.ownable.only_owner() {
-        //     return Err(TokenError::OnlyContractOwner(OnlyContractOwner {}));
-        // }
+        if let Err(_) = self.ownable.only_owner() {
+            return Err(TokenError::OnlyContractOwner(OnlyContractOwner {}));
+        }
 
         let next_id = self.total_supply.get();
         if let Err(_) = self.erc721._mint(to, next_id) {
