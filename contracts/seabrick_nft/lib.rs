@@ -5,13 +5,14 @@ extern crate erc721;
 extern crate initialization;
 extern crate ownable;
 
-use alloc::{format, string::String, vec, vec::Vec};
+use alloc::{format, string::String, vec};
+use alloy_sol_types::sol;
 use erc721::{ERC721Params, ERC721};
 use initialization::Initialization;
 use ownable::Ownable;
 use stylus_sdk::{
     alloy_primitives::{Address, U256},
-    prelude::{entrypoint, external, sol_storage},
+    prelude::{entrypoint, external, sol_storage, SolidityError},
 };
 
 pub struct SeabrickParams;
@@ -31,6 +32,27 @@ impl ERC721Params for SeabrickParams {
     }
 }
 
+sol! {
+    /// NFT not mint
+    error NotMinted();
+
+    /// NFT not Burn
+    error NotBurned();
+
+    error OnlyContractOwner();
+
+    /// Error from a call
+    error AlreadyInit();
+}
+
+#[derive(SolidityError)]
+pub enum TokenError {
+    NotMinted(NotMinted),
+    NotBurned(NotBurned),
+    OnlyContractOwner(OnlyContractOwner),
+    AlreadyInit(AlreadyInit),
+}
+
 sol_storage! {
     // Makes Seabrick the entrypoint
     #[entrypoint]
@@ -48,9 +70,11 @@ sol_storage! {
 #[external]
 #[inherit(ERC721<SeabrickParams>, Ownable)]
 impl Seabrick {
-    pub fn initialization(&mut self, owner: Address) -> Result<(), Vec<u8>> {
+    pub fn initialization(&mut self, owner: Address) -> Result<(), TokenError> {
         // Check if already init. Revert if already init
-        self.init._check_init()?;
+        if let Err(_) = self.init._check_init() {
+            return Err(TokenError::AlreadyInit(AlreadyInit {}));
+        }
 
         // Set contract owner
         self.ownable._owner.set(owner);
@@ -65,17 +89,26 @@ impl Seabrick {
         self.total_supply.get()
     }
 
-    pub fn burn(&mut self, token_id: U256) -> Result<(), Vec<u8>> {
-        self.erc721._burn(token_id)?;
+    pub fn burn(&mut self, token_id: U256) -> Result<(), TokenError> {
+        if let Err(_) = self.erc721._burn(token_id) {
+            return Err(TokenError::NotBurned(NotBurned {}));
+        }
+
         let supply = self.total_supply.get();
         self.total_supply.set(supply - U256::from(1));
+
         Ok(())
     }
 
-    pub fn mint(&mut self, to: Address) -> Result<(), Vec<u8>> {
-        self.ownable.only_owner()?;
+    pub fn mint(&mut self, to: Address) -> Result<(), TokenError> {
+        // if let Err(_) = self.ownable.only_owner() {
+        //     return Err(TokenError::OnlyContractOwner(OnlyContractOwner {}));
+        // }
+
         let next_id = self.total_supply.get();
-        self.erc721._mint(to, next_id)?;
+        if let Err(_) = self.erc721._mint(to, next_id) {
+            return Err(TokenError::NotMinted(NotMinted {}));
+        }
         self.total_supply.set(next_id + U256::from(1));
         Ok(())
     }
