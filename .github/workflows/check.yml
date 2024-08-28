@@ -16,4 +16,6 @@ jobs:
 
         # Run check *just to see
       - name: Run check
+        env:
+          PRIVATE_KEY: ${{ secrets.PRIVATE_KEY }}
         run: ./ci/check.sh
