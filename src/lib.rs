@@ -87,10 +87,6 @@ impl Seabrick {
         Ok(())
     }
 
-    pub fn total_supply(&mut self) -> Result<U256, TokenError> {
-        Ok(self.erc721.total_supply.get())
-    }
-
     pub fn burn(&mut self, token_id: U256) -> Result<(), TokenError> {
         if let Err(_) = self.erc721.burn(msg::sender(), token_id) {
             return Err(TokenError::NotBurned(NotBurned {}));

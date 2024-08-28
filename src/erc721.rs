@@ -239,6 +239,10 @@ impl<T: Erc721Params> Erc721<T> {
         Ok(T::token_uri(token_id))
     }
 
+    pub fn total_supply(&self) -> Result<U256, Erc721Error> {
+        Ok(self.total_supply.get())
+    }
+
     /// Gets the number of NFTs owned by an account.
     pub fn balance_of(&self, owner: Address) -> Result<U256, Erc721Error> {
         Ok(self.balances.get(owner))
