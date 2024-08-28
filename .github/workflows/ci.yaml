@@ -26,5 +26,10 @@ jobs:
       - name: Install Cargo Stylus
         run: cargo install --force cargo-stylus cargo-stylus-check
 
-      - name: Run Cargo plugin
+      - name: Run Stylus check NFT
+        working-directory: ./seabrick-nft
+        run: cargo stylus check
+
+      - name: Run Stylus check Market
+        working-directory: ./seabrick-market
         run: cargo stylus check
