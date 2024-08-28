@@ -29,9 +29,7 @@ jobs:
           rustup target add ${{ matrix.target }}
 
       - name: Build and Test - NFT
-        working-directory: ./seabrick-nft
-        run: ./ci/build.sh
+        run: ./ci/build.sh --path ./seabrick-nft/
 
       - name: Build and Test - Market
-        working-directory: ./seabrick-market
-        run: ./ci/build.sh
+        run: ./ci/build.sh --path ./seabrick-market/

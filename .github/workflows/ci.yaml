@@ -27,9 +27,7 @@ jobs:
         run: cargo install --force cargo-stylus cargo-stylus-check
 
       - name: Run Stylus check NFT
-        working-directory: ./seabrick-nft
-        run: cargo stylus check
+        run: ./ci/stylus-check.sh --path ./seabrick-nft/
 
       - name: Run Stylus check Market
-        working-directory: ./seabrick-market
-        run: cargo stylus check
+        run: ./ci/stylus-check.sh --path ./seabrick-nft/
