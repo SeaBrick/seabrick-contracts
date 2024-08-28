@@ -30,3 +30,11 @@ jobs:
 
       - name: Build and Test
         run: ./ci/build.sh
+
+      - name: Build and Test - NFT
+        working-directory: ./seabrick-nft
+        run: ./ci/build.sh
+
+      - name: Build and Test - Market
+        working-directory: ./seabrick-market
+        run: ./ci/build.sh
