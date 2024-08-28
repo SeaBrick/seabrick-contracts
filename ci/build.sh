@@ -1,4 +1,5 @@
 #!/bin/bash
+set -euo pipefail
 
 # Source the function from the change_dir.sh script
 source ./ci/change-dir.sh
@@ -7,8 +8,6 @@ source ./ci/change-dir.sh
 change_directory "$@"
 
 # Build
-set -euo pipefail
-
 export RUSTFLAGS="-D warnings"
 export RUSTFMT_CI=1
 

@@ -1,4 +1,5 @@
 #!/bin/bash
+set -euo pipefail
 
 # Function to handle the --path parameter and change directory
 change_directory() {
