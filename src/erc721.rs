@@ -295,12 +295,12 @@ const ERC721_RECEIVED_SELECTOR: u32 = 0x150b7a02;
 impl<T: ERC721Params> ERC721<T> {
     /// Returns the token collection name.
     pub fn name() -> String {
-        String::from(T::NAME)
+        T::NAME.into()
     }
 
     /// Returns the token collection symbol.
     pub fn symbol() -> String {
-        String::from(T::SYMBOL)
+        T::SYMBOL.into()
     }
 
     /// Returns the Uniform Resource Identifier (URI) for token `id`.
