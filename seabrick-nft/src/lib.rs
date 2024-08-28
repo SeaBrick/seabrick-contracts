@@ -6,15 +6,14 @@ mod erc721;
 mod initialization;
 mod ownable;
 
-use alloc::{format, string::String, vec};
-use alloy_sol_types::sol;
-use erc721::{Erc721, Erc721Params};
-use initialization::Initialization;
+use alloc::{format, string::String, vec::Vec};
+use erc721::{Erc721, Erc721Error, Erc721Params};
+use initialization::{Initialization, InitializationError};
 use ownable::Ownable;
 use stylus_sdk::{
     alloy_primitives::{Address, U256},
     msg,
-    prelude::{entrypoint, external, sol_storage, SolidityError},
+    prelude::{entrypoint, external, sol_storage},
 };
 
 #[global_allocator]
@@ -37,27 +36,6 @@ impl Erc721Params for SeabrickParams {
     }
 }
 
-sol! {
-    /// NFT not mint
-    error NotMinted();
-
-    /// NFT not Burn
-    error NotBurned();
-
-    error OnlyContractOwner();
-
-    /// Error from a call
-    error AlreadyInit();
-}
-
-#[derive(SolidityError)]
-pub enum TokenError {
-    NotMinted(NotMinted),
-    NotBurned(NotBurned),
-    OnlyContractOwner(OnlyContractOwner),
-    AlreadyInit(AlreadyInit),
-}
-
 sol_storage! {
     // Makes Seabrick the entrypoint
     #[entrypoint]
@@ -74,37 +52,29 @@ sol_storage! {
 #[external]
 #[inherit(Erc721<SeabrickParams>, Ownable)]
 impl Seabrick {
-    pub fn initialization(&mut self, owner: Address) -> Result<(), TokenError> {
+    pub fn initialization(&mut self, owner: Address) -> Result<(), InitializationError> {
         // Check if already init. Revert if already init
-        if let Err(_) = self.init._check_init() {
-            return Err(TokenError::AlreadyInit(AlreadyInit {}));
-        }
+        self.init._check_init()?;
 
         // Set contract owner
-        self.ownable._owner.set(owner);
+        self.ownable._transfer_ownership(owner);
 
         // Change contract state to already initialized
-        self.init.is_init.set(true);
+        self.init._set_init(true);
 
         Ok(())
     }
 
-    pub fn burn(&mut self, token_id: U256) -> Result<(), TokenError> {
-        if let Err(_) = self.erc721.burn(msg::sender(), token_id) {
-            return Err(TokenError::NotBurned(NotBurned {}));
-        }
-
+    pub fn burn(&mut self, token_id: U256) -> Result<(), Erc721Error> {
+        self.erc721.burn(msg::sender(), token_id)?;
         Ok(())
     }
 
-    pub fn mint(&mut self, to: Address) -> Result<(), TokenError> {
-        // if let Err(_) = self.ownable.only_owner() {
-        //     return Err(TokenError::OnlyContractOwner(OnlyContractOwner {}));
-        // }
+    pub fn mint(&mut self, to: Address) -> Result<(), Vec<u8>> {
+        self.ownable.only_owner()?;
 
-        if let Err(_) = self.erc721.mint(to) {
-            return Err(TokenError::NotMinted(NotMinted {}));
-        }
+        self.erc721.mint(to)?;
+
         Ok(())
     }
 }

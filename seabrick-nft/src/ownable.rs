@@ -32,7 +32,7 @@ sol! {
 }
 
 #[derive(SolidityError, Debug)]
-pub enum Error {
+pub enum OwnableError {
     /// The caller account is not authorized to perform an operation.
     UnauthorizedAccount(OwnableUnauthorizedAccount),
     /// The owner is not a valid owner account. (eg. `Address::ZERO`)
@@ -58,10 +58,10 @@ impl Ownable {
     ///
     /// If called by any account other than the owner, then the error
     /// [`Error::UnauthorizedAccount`] is returned.
-    pub fn only_owner(&self) -> Result<(), Error> {
+    pub fn only_owner(&self) -> Result<(), OwnableError> {
         let account = msg::sender();
         if self.owner() != account {
-            return Err(Error::UnauthorizedAccount(OwnableUnauthorizedAccount {
+            return Err(OwnableError::UnauthorizedAccount(OwnableUnauthorizedAccount {
                 account,
             }));
         }
@@ -81,11 +81,11 @@ impl Ownable {
     ///
     /// If `new_owner` is the zero address, then the error
     /// [`OwnableInvalidOwner`] is returned.
-    pub fn transfer_ownership(&mut self, new_owner: Address) -> Result<(), Error> {
+    pub fn transfer_ownership(&mut self, new_owner: Address) -> Result<(), OwnableError> {
         self.only_owner()?;
 
         if new_owner == Address::ZERO {
-            return Err(Error::InvalidOwner(OwnableInvalidOwner {
+            return Err(OwnableError::InvalidOwner(OwnableInvalidOwner {
                 owner: Address::ZERO,
             }));
         }
@@ -105,7 +105,7 @@ impl Ownable {
     ///
     /// If not called by the owner, then the error
     /// [`Error::UnauthorizedAccount`] is returned.
-    pub fn renounce_ownership(&mut self) -> Result<(), Error> {
+    pub fn renounce_ownership(&mut self) -> Result<(), OwnableError> {
         self.only_owner()?;
         self._transfer_ownership(Address::ZERO);
         Ok(())

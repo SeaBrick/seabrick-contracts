@@ -17,7 +17,7 @@ sol! {
 }
 
 #[derive(SolidityError, Debug)]
-pub enum Error {
+pub enum InitializationError {
     /// Contract already init
     AlreadyInitialized(AlreadyInit),
 }
@@ -29,13 +29,17 @@ sol_storage! {
 }
 
 impl Initialization {
-    pub fn _check_init(&mut self) -> Result<(), Error> {
+    pub fn _check_init(&mut self) -> Result<(), InitializationError> {
         let init_status = self.is_init.get();
 
         if init_status {
-            return Err(Error::AlreadyInitialized(AlreadyInit {}));
+            return Err(InitializationError::AlreadyInitialized(AlreadyInit {}));
         }
 
         Ok(())
+    }
+
+    pub fn _set_init(&mut self, value: bool) {
+        self.is_init.set(value)
     }
 }
