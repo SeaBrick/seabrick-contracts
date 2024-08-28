@@ -1,9 +1,10 @@
 #![cfg_attr(not(feature = "export-abi"), no_std, no_main)]
 
 extern crate alloc;
-extern crate erc721;
-extern crate initialization;
-extern crate ownable;
+
+mod erc721;
+mod initialization;
+mod ownable;
 
 use alloc::{format, string::String, vec};
 use alloy_sol_types::sol;

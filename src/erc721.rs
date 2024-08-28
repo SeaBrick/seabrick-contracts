@@ -6,7 +6,6 @@
 //! This contract use as base inkmate from his 0.0.6 version
 //! https://github.com/cygaar/inkmate/blob/main/contracts/src/tokens/erc721.rs
 //!
-#![cfg_attr(not(feature = "export-abi"), no_std, no_main)]
 
 extern crate alloc;
 
