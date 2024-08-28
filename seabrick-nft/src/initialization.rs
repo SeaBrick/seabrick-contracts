@@ -1,5 +1,4 @@
-//! Ownable contract.
-//! The logic was based off of: https://github.com/OpenZeppelin/rust-contracts-stylus/blob/main/contracts/src/access/ownable.rs
+//! Initialization contract.
 
 extern crate alloc;
 
