@@ -21,4 +21,11 @@ source ./ci/change-dir.sh
 # Call the function with parameters
 change_directory "$@"
 
+# Deploy the contract
 cargo stylus deploy --private-key $PRIVATE_KEY
+
+# Output the Solidity Interface
+cargo stylus export-abi
+
+# Output the ABI JSON
+cargo stylus export-abi --json
