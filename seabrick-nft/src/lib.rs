@@ -8,17 +8,22 @@ mod ownable;
 
 use alloc::{format, string::String, vec};
 use alloy_sol_types::sol;
-use erc721::{ERC721Params, ERC721};
+use erc721::{Erc721, Erc721Params};
 use initialization::Initialization;
 use ownable::Ownable;
 use stylus_sdk::{
     alloy_primitives::{Address, U256},
+    msg,
     prelude::{entrypoint, external, sol_storage, SolidityError},
 };
 
-/// Immutable definitions
+#[global_allocator]
+static ALLOC: mini_alloc::MiniAlloc = mini_alloc::MiniAlloc::INIT;
+
 pub struct SeabrickParams;
-impl ERC721Params for SeabrickParams {
+
+/// Immutable definitions
+impl Erc721Params for SeabrickParams {
     const NAME: &'static str = "SeaBrick NFT";
     const SYMBOL: &'static str = "SB_NFT";
 
@@ -58,17 +63,16 @@ sol_storage! {
     #[entrypoint]
     pub struct Seabrick {
         #[borrow]
-        ERC721<SeabrickParams> erc721;
+        Erc721<SeabrickParams> erc721;
         #[borrow]
         Ownable ownable;
         #[borrow]
         Initialization init;
-        uint256 total_supply;
     }
 }
 
 #[external]
-#[inherit(ERC721<SeabrickParams>, Ownable)]
+#[inherit(Erc721<SeabrickParams>, Ownable)]
 impl Seabrick {
     pub fn initialization(&mut self, owner: Address) -> Result<(), TokenError> {
         // Check if already init. Revert if already init
@@ -85,31 +89,22 @@ impl Seabrick {
         Ok(())
     }
 
-    pub fn total_supply(&self) -> U256 {
-        self.total_supply.get()
-    }
-
     pub fn burn(&mut self, token_id: U256) -> Result<(), TokenError> {
-        if let Err(_) = self.erc721._burn(token_id) {
+        if let Err(_) = self.erc721.burn(msg::sender(), token_id) {
             return Err(TokenError::NotBurned(NotBurned {}));
         }
-
-        let supply = self.total_supply.get();
-        self.total_supply.set(supply - U256::from(1));
 
         Ok(())
     }
 
     pub fn mint(&mut self, to: Address) -> Result<(), TokenError> {
-        if let Err(_) = self.ownable.only_owner() {
-            return Err(TokenError::OnlyContractOwner(OnlyContractOwner {}));
-        }
+        // if let Err(_) = self.ownable.only_owner() {
+        //     return Err(TokenError::OnlyContractOwner(OnlyContractOwner {}));
+        // }
 
-        let next_id = self.total_supply.get();
-        if let Err(_) = self.erc721._mint(to, next_id) {
+        if let Err(_) = self.erc721.mint(to) {
             return Err(TokenError::NotMinted(NotMinted {}));
         }
-        self.total_supply.set(next_id + U256::from(1));
         Ok(())
     }
 }
