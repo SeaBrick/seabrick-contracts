@@ -1,7 +1,13 @@
 #!/bin/bash
-
 set -euo pipefail
 
+# Source the function from the change_dir.sh script
+source ./ci/change-dir.sh
+
+# Call the function with parameters
+change_directory "$@"
+
+# Build
 export RUSTFLAGS="-D warnings"
 export RUSTFMT_CI=1
 

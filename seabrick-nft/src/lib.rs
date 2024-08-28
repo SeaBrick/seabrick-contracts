@@ -8,11 +8,13 @@ mod ownable;
 
 use alloc::{format, string::String, vec};
 use alloy_sol_types::sol;
-use erc721::{Erc721Params, Erc721};
+use erc721::{Erc721, Erc721Params};
 use initialization::Initialization;
 use ownable::Ownable;
 use stylus_sdk::{
-    alloy_primitives::{Address, U256}, msg, prelude::{entrypoint, external, sol_storage, SolidityError}
+    alloy_primitives::{Address, U256},
+    msg,
+    prelude::{entrypoint, external, sol_storage, SolidityError},
 };
 
 #[global_allocator]
