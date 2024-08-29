@@ -7,13 +7,14 @@ mod initialization;
 mod ownable;
 
 use alloc::{format, string::String, vec::Vec};
+use alloy_sol_types::sol;
 use erc721::{Erc721, Erc721Error, Erc721Params};
 use initialization::{Initialization, InitializationError};
 use ownable::Ownable;
 use stylus_sdk::{
     alloy_primitives::{Address, U256},
     msg,
-    prelude::{entrypoint, external, sol_storage},
+    prelude::{entrypoint, external, sol_storage, SolidityError},
 };
 
 #[global_allocator]
@@ -46,7 +47,17 @@ sol_storage! {
         Ownable ownable;
         #[borrow]
         Initialization init;
+        mapping(address => bool) minters;
     }
+}
+
+sol! {
+    error OnlyMinters();
+}
+
+#[derive(SolidityError)]
+pub enum SeabrickError {
+    OnlyMinters(OnlyMinters),
 }
 
 #[external]
@@ -65,16 +76,23 @@ impl Seabrick {
         Ok(())
     }
 
+    pub fn set_minter(&mut self, minter: Address, status: bool) -> Result<(), Vec<u8>> {
+        self.ownable.only_owner()?;
+        self.minters.setter(minter).set(status);
+        Ok(())
+    }
+
     pub fn burn(&mut self, token_id: U256) -> Result<(), Erc721Error> {
         self.erc721.burn(msg::sender(), token_id)?;
         Ok(())
     }
 
     pub fn mint(&mut self, to: Address) -> Result<U256, Vec<u8>> {
-        self.ownable.only_owner()?;
+        if !self.minters.get(msg::sender()) {
+            return Err(SeabrickError::OnlyMinters(OnlyMinters {}).into());
+        }
 
         self.erc721.mint(to)?;
-
         Ok(self.erc721.total_supply.get() - U256::from(1u8))
     }
 }
