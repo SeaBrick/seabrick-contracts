@@ -61,9 +61,9 @@ impl Ownable {
     pub fn only_owner(&self) -> Result<(), OwnableError> {
         let account = msg::sender();
         if self.owner() != account {
-            return Err(OwnableError::UnauthorizedAccount(OwnableUnauthorizedAccount {
-                account,
-            }));
+            return Err(OwnableError::UnauthorizedAccount(
+                OwnableUnauthorizedAccount { account },
+            ));
         }
 
         Ok(())
