@@ -13,7 +13,7 @@ use initialization::{Initialization, InitializationError};
 use ownable::Ownable;
 use stylus_sdk::{
     alloy_primitives::{Address, U256},
-    msg,
+    evm, msg,
     prelude::{entrypoint, external, sol_storage, SolidityError},
 };
 
@@ -52,6 +52,8 @@ sol_storage! {
 }
 
 sol! {
+    event MinterUpdated(address minter);
+
     error OnlyMinters();
 }
 
@@ -79,6 +81,9 @@ impl Seabrick {
     pub fn set_minter(&mut self, minter: Address, status: bool) -> Result<(), Vec<u8>> {
         self.ownable.only_owner()?;
         self.minters.setter(minter).set(status);
+
+        evm::log(MinterUpdated { minter });
+
         Ok(())
     }
 
