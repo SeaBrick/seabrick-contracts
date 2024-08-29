@@ -43,7 +43,7 @@ sol! {
     event AggregatorAdded(bytes32 name, address aggregator, address token);
 
     /// Emitted when contract sell a NFT
-    event Buy(address buyer, uint256 id, bytes32 aggregator);
+    event Buy(address buyer, uint256 id, uint256 amountSpent, bytes32 aggregator);
 
     /// Tokens claimed
     event Claimed(address token, uint256 amount, bytes32 aggregator);
@@ -198,6 +198,7 @@ impl Market {
         evm::log(Buy {
             buyer,
             id,
+            amountSpent: amount_need,
             aggregator: name,
         });
 
