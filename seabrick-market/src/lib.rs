@@ -47,6 +47,8 @@ sol! {
 
     /// Tokens claimed
     event Claimed(address token, uint256 amount);
+
+    event SaleDetails(address nftAddress, uint256 price);
 }
 
 sol! {
@@ -141,6 +143,11 @@ impl Market {
                 token: tokens[i],
             });
         }
+
+        evm::log(SaleDetails {
+            price,
+            nftAddress: nft_token,
+        });
 
         // Change contract state to already initialized
         self.init._set_init(true);
