@@ -70,11 +70,11 @@ impl Seabrick {
         Ok(())
     }
 
-    pub fn mint(&mut self, to: Address) -> Result<(), Vec<u8>> {
+    pub fn mint(&mut self, to: Address) -> Result<U256, Vec<u8>> {
         self.ownable.only_owner()?;
 
         self.erc721.mint(to)?;
 
-        Ok(())
+        Ok(self.erc721.total_supply.get() - U256::from(1u8))
     }
 }

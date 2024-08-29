@@ -20,7 +20,7 @@ static ALLOC: mini_alloc::MiniAlloc = mini_alloc::MiniAlloc::INIT;
 
 sol_interface! {
     interface ISeabrick {
-        function mint(address to) external;
+        function mint(address to) external returns (uint256);
     }
 
     interface IERC20 {
@@ -43,10 +43,10 @@ sol! {
     event AggregatorAdded(bytes32 name, address aggregator, address token);
 
     /// Emitted when contract sell a NFT
-    event Buy(address buyer);
+    event Buy(address buyer, uint256 id, bytes32 aggregator);
 
     /// Tokens claimed
-    event Claimed(address token, uint256 amount);
+    event Claimed(address token, uint256 amount, bytes32 aggregator);
 
     event SaleDetails(address nftAddress, uint256 price);
 }
@@ -193,9 +193,13 @@ impl Market {
         let seabrick = ISeabrick::new(self.nft_token.get());
 
         // Mint the token to the buyer address
-        seabrick.mint(Call::new_in(self), buyer)?;
+        let id = seabrick.mint(Call::new_in(self), buyer)?;
 
-        evm::log(Buy { buyer });
+        evm::log(Buy {
+            buyer,
+            id,
+            aggregator: name,
+        });
 
         Ok(())
     }
@@ -219,6 +223,7 @@ impl Market {
         evm::log(Claimed {
             token: claim_token.address,
             amount: amount_collected,
+            aggregator: name,
         });
 
         Ok(())
