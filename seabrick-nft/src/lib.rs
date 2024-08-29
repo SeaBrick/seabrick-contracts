@@ -52,7 +52,7 @@ sol_storage! {
 }
 
 sol! {
-    event MinterUpdated(address minter);
+    event MinterUpdated(address minter, bool status);
 
     error OnlyMinters();
 }
@@ -82,7 +82,7 @@ impl Seabrick {
         self.ownable.only_owner()?;
         self.minters.setter(minter).set(status);
 
-        evm::log(MinterUpdated { minter });
+        evm::log(MinterUpdated { minter, status });
 
         Ok(())
     }
