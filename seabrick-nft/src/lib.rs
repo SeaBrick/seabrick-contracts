@@ -14,11 +14,8 @@ use ownable::Ownable;
 use stylus_sdk::{
     alloy_primitives::{Address, U256},
     evm, msg,
-    prelude::{entrypoint, external, sol_storage, SolidityError},
+    prelude::{entrypoint, public, sol_storage, SolidityError},
 };
-
-#[global_allocator]
-static ALLOC: mini_alloc::MiniAlloc = mini_alloc::MiniAlloc::INIT;
 
 pub struct SeabrickParams;
 
@@ -62,7 +59,7 @@ pub enum SeabrickError {
     OnlyMinters(OnlyMinters),
 }
 
-#[external]
+#[public]
 #[inherit(Erc721<SeabrickParams>, Ownable)]
 impl Seabrick {
     pub fn initialization(&mut self, owner: Address) -> Result<(), InitializationError> {
