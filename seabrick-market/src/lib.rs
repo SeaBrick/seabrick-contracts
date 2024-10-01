@@ -12,11 +12,8 @@ use stylus_sdk::{
     alloy_sol_types::sol,
     call::Call,
     contract, evm, msg,
-    prelude::{entrypoint, external, sol_interface, sol_storage, SolidityError},
+    prelude::{entrypoint, public, sol_interface, sol_storage, SolidityError},
 };
-
-#[global_allocator]
-static ALLOC: mini_alloc::MiniAlloc = mini_alloc::MiniAlloc::INIT;
 
 sol_interface! {
     interface ISeabrick {
@@ -104,7 +101,7 @@ sol_storage! {
     }
 }
 
-#[external]
+#[public]
 #[inherit(Ownable)]
 impl Market {
     pub fn initialization(
