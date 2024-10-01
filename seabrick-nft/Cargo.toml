@@ -3,10 +3,10 @@ name = "seabrick_nft"
 version = "0.1.0"
 edition = "2021"
 license = "MIT OR Apache-2.0"
-homepage = "https://github.com/OffchainLabs/stylus-hello-world"
-repository = "https://github.com/OffchainLabs/stylus-hello-world"
-keywords = ["arbitrum", "ethereum", "stylus", "alloy"]
-description = "Stylus hello world example"
+homepage = "https://github.com/SeaBrick/seabrick-contracts/seabrick-nft"
+repository = "https://github.com/SeaBrick/seabrick-contracts/"
+keywords = ["arbitrum", "ethereum", "stylus", "alloy", "seabrick"]
+description = "Stylus Seabrick NFT contract"
 
 [dependencies]
 alloy-primitives = "=0.7.6"
