@@ -18,6 +18,8 @@ use stylus_sdk::{
 sol_interface! {
     interface ISeabrick {
         function mint(address to) external returns (uint256);
+        function mintBatch(address to, uint8 amount) external;
+        function totalSupply() external returns (uint256);
     }
 
     interface IERC20 {
@@ -101,6 +103,86 @@ sol_storage! {
     }
 }
 
+impl Market {
+    pub fn get_amount_price(&mut self, amount: u8, name: FixedBytes<32>) -> Result<U256, Vec<u8>> {
+        let payment_token = IERC20::new(self.price_feeds.get(name).token.get());
+        let oracle = AggregatorV3Interface::new(self.price_feeds.get(name).agregator_address.get());
+
+        // Get latest answer price
+        let latest_answer =
+            U256::from_limbs(oracle.latest_round_data(Call::new_in(self))?.1.into_limbs());
+
+        let oracle_decimals = U256::from(oracle.decimals(Call::new_in(self))?);
+
+        let payment_decimals = U256::from(payment_token.decimals(Call::new_in(self))?);
+
+        // Scaled price
+        let usd_price = self.price.get()
+            * U256::from(10).pow(payment_decimals)
+            * U256::from(10).pow(oracle_decimals);
+
+        let amount_need = usd_price.div_ceil(latest_answer);
+
+        Ok(amount_need * U256::from(amount))
+    }
+
+    pub fn buy_internal(
+        &mut self,
+        buyer: Address,
+        name: FixedBytes<32>,
+        amount: u8,
+    ) -> Result<(), Vec<u8>> {
+        let payment_token = IERC20::new(self.price_feeds.get(name).token.get());
+
+        let amount_needed = self.get_amount_price(amount, name)?;
+
+        let success = payment_token.transfer_from(
+            Call::new_in(self),
+            buyer,
+            contract::address(),
+            amount_needed,
+        )?;
+        if !success {
+            return Err(MarketError::PaymentFailed(PaymentFailed {}).into());
+        }
+
+        // Increasing the total collected by this payment token
+        let collected = self.total_collected.get(payment_token.address);
+        self.total_collected
+            .setter(payment_token.address)
+            .set(collected + amount_needed);
+
+        let seabrick = ISeabrick::new(self.nft_token.get());
+
+        if amount == 1 {
+            // Mint the token to the buyer address
+            let id = seabrick.mint(Call::new_in(self), buyer)?;
+
+            evm::log(Buy {
+                buyer,
+                id,
+                amountSpent: amount_needed,
+                aggregator: name,
+            });
+        } else {
+            let id_init = (seabrick.total_supply(Call::new_in(self))?) + U256::from(1u8);
+
+            seabrick.mint_batch(Call::new_in(self), buyer, amount)?;
+
+            for i in 0..amount.into() {
+                evm::log(Buy {
+                    buyer,
+                    id: id_init + U256::from(i),
+                    amountSpent: amount_needed,
+                    aggregator: name,
+                });
+            }
+        }
+
+        Ok(())
+    }
+}
+
 #[public]
 #[inherit(Ownable)]
 impl Market {
@@ -153,52 +235,50 @@ impl Market {
     }
 
     pub fn buy(&mut self, buyer: Address, name: FixedBytes<32>) -> Result<(), Vec<u8>> {
-        let payment_token = IERC20::new(self.price_feeds.get(name).token.get());
-        let oracle = AggregatorV3Interface::new(self.price_feeds.get(name).agregator_address.get());
+        self.buy_internal(buyer, name, 1u8)?;
 
-        // Get latest answer price
-        let latest_answer =
-            U256::from_limbs(oracle.latest_round_data(Call::new_in(self))?.1.into_limbs());
+        // let payment_token = IERC20::new(self.price_feeds.get(name).token.get());
 
-        let oracle_decimals = U256::from(oracle.decimals(Call::new_in(self))?);
+        // let amount_need = self.get_amount_price(1u8, name)?;
 
-        let payment_decimals = U256::from(payment_token.decimals(Call::new_in(self))?);
+        // let success = payment_token.transfer_from(
+        //     Call::new_in(self),
+        //     buyer,
+        //     contract::address(),
+        //     amount_need,
+        // )?;
+        // if !success {
+        //     return Err(MarketError::PaymentFailed(PaymentFailed {}).into());
+        // }
 
-        // Scaled price
-        let usd_price = self.price.get()
-            * U256::from(10).pow(payment_decimals)
-            * U256::from(10).pow(oracle_decimals);
+        // // Increasing the total collected by this payment token
+        // let collected = self.total_collected.get(payment_token.address);
+        // self.total_collected
+        //     .setter(payment_token.address)
+        //     .set(collected + amount_need);
 
-        let amount_need = usd_price.div_ceil(latest_answer);
+        // let seabrick = ISeabrick::new(self.nft_token.get());
 
-        let success = payment_token.transfer_from(
-            Call::new_in(self),
-            buyer,
-            contract::address(),
-            amount_need,
-        )?;
-        if !success {
-            return Err(MarketError::PaymentFailed(PaymentFailed {}).into());
-        }
+        // // Mint the token to the buyer address
+        // let id = seabrick.mint(Call::new_in(self), buyer)?;
 
-        // Increasing the total collected by this payment token
-        let collected = self.total_collected.get(payment_token.address);
-        self.total_collected
-            .setter(payment_token.address)
-            .set(collected + amount_need);
+        // evm::log(Buy {
+        //     buyer,
+        //     id,
+        //     amountSpent: amount_need,
+        //     aggregator: name,
+        // });
 
-        let seabrick = ISeabrick::new(self.nft_token.get());
+        Ok(())
+    }
 
-        // Mint the token to the buyer address
-        let id = seabrick.mint(Call::new_in(self), buyer)?;
-
-        evm::log(Buy {
-            buyer,
-            id,
-            amountSpent: amount_need,
-            aggregator: name,
-        });
-
+    pub fn buy_batch(
+        &mut self,
+        buyer: Address,
+        name: FixedBytes<32>,
+        amount: u8,
+    ) -> Result<(), Vec<u8>> {
+        self.buy_internal(buyer, name, amount)?;
         Ok(())
     }
 
