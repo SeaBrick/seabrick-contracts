@@ -125,62 +125,6 @@ impl Market {
 
         Ok(amount_need * U256::from(amount))
     }
-
-    pub fn buy_internal(
-        &mut self,
-        buyer: Address,
-        name: FixedBytes<32>,
-        amount: u8,
-    ) -> Result<(), Vec<u8>> {
-        let payment_token = IERC20::new(self.price_feeds.get(name).token.get());
-
-        let amount_needed = self.get_amount_price(amount, name)?;
-
-        let success = payment_token.transfer_from(
-            Call::new_in(self),
-            buyer,
-            contract::address(),
-            amount_needed,
-        )?;
-        if !success {
-            return Err(MarketError::PaymentFailed(PaymentFailed {}).into());
-        }
-
-        // Increasing the total collected by this payment token
-        let collected = self.total_collected.get(payment_token.address);
-        self.total_collected
-            .setter(payment_token.address)
-            .set(collected + amount_needed);
-
-        let seabrick = ISeabrick::new(self.nft_token.get());
-
-        if amount == 1 {
-            // Mint the token to the buyer address
-            let id = seabrick.mint(Call::new_in(self), buyer)?;
-
-            evm::log(Buy {
-                buyer,
-                id,
-                amountSpent: amount_needed,
-                aggregator: name,
-            });
-        } else {
-            let id_init = (seabrick.total_supply(Call::new_in(self))?) + U256::from(1u8);
-
-            seabrick.mint_batch(Call::new_in(self), buyer, amount)?;
-
-            for i in 0..amount.into() {
-                evm::log(Buy {
-                    buyer,
-                    id: id_init + U256::from(i),
-                    amountSpent: amount_needed,
-                    aggregator: name,
-                });
-            }
-        }
-
-        Ok(())
-    }
 }
 
 #[public]
@@ -234,51 +178,54 @@ impl Market {
         Ok(())
     }
 
-    pub fn buy(&mut self, buyer: Address, name: FixedBytes<32>) -> Result<(), Vec<u8>> {
-        self.buy_internal(buyer, name, 1u8)?;
+    pub fn buy(&mut self, buyer: Address, name: FixedBytes<32>, amount: u8) -> Result<(), Vec<u8>> {
+        let payment_token = IERC20::new(self.price_feeds.get(name).token.get());
 
-        // let payment_token = IERC20::new(self.price_feeds.get(name).token.get());
+        let amount_needed = self.get_amount_price(amount, name)?;
 
-        // let amount_need = self.get_amount_price(1u8, name)?;
+        let success = payment_token.transfer_from(
+            Call::new_in(self),
+            buyer,
+            contract::address(),
+            amount_needed,
+        )?;
+        if !success {
+            return Err(MarketError::PaymentFailed(PaymentFailed {}).into());
+        }
 
-        // let success = payment_token.transfer_from(
-        //     Call::new_in(self),
-        //     buyer,
-        //     contract::address(),
-        //     amount_need,
-        // )?;
-        // if !success {
-        //     return Err(MarketError::PaymentFailed(PaymentFailed {}).into());
-        // }
+        // Increasing the total collected by this payment token
+        let collected = self.total_collected.get(payment_token.address);
+        self.total_collected
+            .setter(payment_token.address)
+            .set(collected + amount_needed);
 
-        // // Increasing the total collected by this payment token
-        // let collected = self.total_collected.get(payment_token.address);
-        // self.total_collected
-        //     .setter(payment_token.address)
-        //     .set(collected + amount_need);
+        let seabrick = ISeabrick::new(self.nft_token.get());
 
-        // let seabrick = ISeabrick::new(self.nft_token.get());
+        if amount == 1 {
+            // Mint the token to the buyer address
+            let id = seabrick.mint(Call::new_in(self), buyer)?;
 
-        // // Mint the token to the buyer address
-        // let id = seabrick.mint(Call::new_in(self), buyer)?;
+            evm::log(Buy {
+                buyer,
+                id,
+                amountSpent: amount_needed,
+                aggregator: name,
+            });
+        } else {
+            let id_init = (seabrick.total_supply(Call::new_in(self))?) + U256::from(1u8);
 
-        // evm::log(Buy {
-        //     buyer,
-        //     id,
-        //     amountSpent: amount_need,
-        //     aggregator: name,
-        // });
+            seabrick.mint_batch(Call::new_in(self), buyer, amount)?;
 
-        Ok(())
-    }
+            for i in 0..amount.into() {
+                evm::log(Buy {
+                    buyer,
+                    id: id_init + U256::from(i),
+                    amountSpent: amount_needed,
+                    aggregator: name,
+                });
+            }
+        }
 
-    pub fn buy_batch(
-        &mut self,
-        buyer: Address,
-        name: FixedBytes<32>,
-        amount: u8,
-    ) -> Result<(), Vec<u8>> {
-        self.buy_internal(buyer, name, amount)?;
         Ok(())
     }
 
