@@ -59,6 +59,9 @@ sol! {
 
     /// Error when claiming
     error ClaimFailed();
+
+    /// Error when setting price as zero
+    error ZeroPrice();
 }
 
 #[derive(SolidityError)]
@@ -66,6 +69,7 @@ pub enum MarketError {
     PaymentFailed(PaymentFailed),
     MismatchAggregators(MismatchAggregators),
     ClaimFailed(ClaimFailed),
+    ZeroPrice(ZeroPrice),
 }
 
 sol_storage! {
@@ -125,6 +129,32 @@ impl Market {
 
         Ok(amount_need * U256::from(amount))
     }
+
+    pub fn set_aggregators_internal(
+        &mut self,
+        names: Vec<FixedBytes<32>>,
+        agregators: Vec<Address>,
+        tokens: Vec<Address>,
+    ) -> Result<(), Vec<u8>> {
+        // Set agregators info
+        if names.len() != agregators.len() || names.len() != tokens.len() {
+            return Err(MarketError::MismatchAggregators(MismatchAggregators {}).into());
+        }
+
+        for i in 0..names.len() {
+            let mut map_aggregator = self.price_feeds.setter(names[i]);
+            map_aggregator.agregator_address.set(agregators[i]);
+            map_aggregator.token.set(tokens[i]);
+
+            evm::log(AggregatorAdded {
+                name: names[i],
+                aggregator: agregators[i],
+                token: tokens[i],
+            });
+        }
+
+        Ok(())
+    }
 }
 
 #[public]
@@ -150,22 +180,8 @@ impl Market {
         // Set NFT token contract
         self.nft_token.set(nft_token);
 
-        // Set agregators info
-        if names.len() != agregators.len() || names.len() != tokens.len() {
-            return Err(MarketError::MismatchAggregators(MismatchAggregators {}).into());
-        }
-
-        for i in 0..names.len() {
-            let mut map_aggregator = self.price_feeds.setter(names[i]);
-            map_aggregator.agregator_address.set(agregators[i]);
-            map_aggregator.token.set(tokens[i]);
-
-            evm::log(AggregatorAdded {
-                name: names[i],
-                aggregator: agregators[i],
-                token: tokens[i],
-            });
-        }
+        // Add the agregators
+        self.set_aggregators_internal(names, agregators, tokens)?;
 
         evm::log(SaleDetails {
             price,
@@ -174,6 +190,32 @@ impl Market {
 
         // Change contract state to already initialized
         self.init._set_init(true);
+
+        Ok(())
+    }
+
+    pub fn set_agregators(
+        &mut self,
+        names: Vec<FixedBytes<32>>,
+        agregators: Vec<Address>,
+        tokens: Vec<Address>,
+    ) -> Result<(), Vec<u8>> {
+        self.ownable.only_owner()?;
+
+        self.set_aggregators_internal(names, agregators, tokens)?;
+
+        Ok(())
+    }
+
+    pub fn set_price(&mut self, price: U256) -> Result<(), Vec<u8>> {
+        self.ownable.only_owner()?;
+
+        if price == U256::ZERO {
+            return Err(MarketError::ZeroPrice(ZeroPrice {}).into());
+        }
+
+        // Set NFT price
+        self.price.set(price);
 
         Ok(())
     }
