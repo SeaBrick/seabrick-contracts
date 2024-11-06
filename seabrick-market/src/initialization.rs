@@ -4,8 +4,15 @@ extern crate alloc;
 
 use stylus_sdk::{
     alloy_sol_types::sol,
+    evm::log as log_event,
     prelude::{sol_storage, SolidityError},
 };
+
+sol! {
+    /// Emitted when contract is initialized
+    #[allow(missing_docs)]
+    event Initialized();
+}
 
 sol! {
     /// The contract was already initialized
@@ -39,6 +46,7 @@ impl Initialization {
     }
 
     pub fn _set_init(&mut self, value: bool) {
-        self.is_init.set(value)
+        self.is_init.set(value);
+        log_event(Initialized {});
     }
 }
