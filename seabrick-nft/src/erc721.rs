@@ -9,7 +9,7 @@
 use alloc::{string::String, vec, vec::Vec};
 use alloy_primitives::{Address, FixedBytes, U256};
 use alloy_sol_types::sol;
-use core::{borrow::BorrowMut, marker::PhantomData};
+use core::marker::PhantomData;
 use stylus_sdk::{evm, msg, prelude::*};
 
 pub trait Erc721Params {
@@ -55,8 +55,6 @@ sol! {
     error NotApproved(address owner, address spender, uint256 token_id);
     // Attempt to transfer token id to the Zero address
     error TransferToZero(uint256 token_id);
-    // The receiver address refused to receive the specified token id
-    error ReceiverRefused(address receiver, uint256 token_id, bytes4 returned);
 }
 
 /// Represents the ways methods may fail.
@@ -66,15 +64,6 @@ pub enum Erc721Error {
     NotOwner(NotOwner),
     NotApproved(NotApproved),
     TransferToZero(TransferToZero),
-    ReceiverRefused(ReceiverRefused),
-}
-
-// External interfaces
-sol_interface! {
-    /// Allows calls to the `onERC721Received` method of other contracts implementing `IERC721TokenReceiver`.
-    interface IERC721TokenReceiver {
-        function onERC721Received(address operator, address from, uint256 token_id, bytes data) external returns(bytes4);
-    }
 }
 
 // These methods aren't external, but are helpers used by external methods.
@@ -155,16 +144,6 @@ impl<T: Erc721Params> Erc721<T> {
         Ok(())
     }
 
-    /// Transfers and calls `onERC721Received`
-    pub fn safe_transfer<S: TopLevelStorage + BorrowMut<Self>>(
-        storage: &mut S,
-        token_id: U256,
-        from: Address,
-        to: Address,
-    ) -> Result<(), Erc721Error> {
-        storage.borrow_mut().transfer(token_id, from, to)
-    }
-
     /// Mints a new token and transfers it to `to`
     pub fn mint(&mut self, to: Address) -> Result<(), Erc721Error> {
         let new_token_id = self.total_supply.get();
@@ -217,27 +196,6 @@ impl<T: Erc721Params> Erc721<T> {
             return Err(Erc721Error::InvalidTokenId(InvalidTokenId { token_id }));
         }
         Ok(owner)
-    }
-
-    /// Equivalent to [`safe_transfer_from_with_data`], but without the additional data.
-    ///
-    /// Note: because Rust doesn't allow multiple methods with the same name,
-    /// we use the `#[selector]` macro attribute to simulate solidity overloading.
-    #[selector(name = "safeTransferFrom")]
-    pub fn safe_transfer_from<S: TopLevelStorage + BorrowMut<Self>>(
-        storage: &mut S,
-        from: Address,
-        to: Address,
-        token_id: U256,
-    ) -> Result<(), Erc721Error> {
-        if to.is_zero() {
-            return Err(Erc721Error::TransferToZero(TransferToZero { token_id }));
-        }
-        storage
-            .borrow_mut()
-            .require_authorized_to_spend(from, token_id)?;
-
-        Self::safe_transfer(storage, token_id, from, to)
     }
 
     /// Transfers the NFT.
