@@ -130,5 +130,3 @@ impl Ownership {
         Ok(())
     }
 }
-
-impl Ownership {}
