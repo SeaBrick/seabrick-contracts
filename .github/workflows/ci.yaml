@@ -30,4 +30,4 @@ jobs:
         run: ./ci/stylus-check.sh --path ./seabrick-nft/
 
       - name: Run Stylus check Market
-        run: ./ci/stylus-check.sh --path ./seabrick-nft/
+        run: ./ci/stylus-check.sh --path ./seabrick-market/

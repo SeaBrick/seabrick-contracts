@@ -97,4 +97,16 @@ impl Seabrick {
         self.erc721.mint(to)?;
         Ok(self.erc721.total_supply.get() - U256::from(1u8))
     }
+
+    pub fn mint_batch(&mut self, to: Address, amount: u8) -> Result<(), Vec<u8>> {
+        if !self.minters.get(msg::sender()) {
+            return Err(SeabrickError::OnlyMinters(OnlyMinters {}).into());
+        }
+
+        for _ in 0..amount.into() {
+            self.erc721.mint(to)?;
+        }
+
+        Ok(())
+    }
 }

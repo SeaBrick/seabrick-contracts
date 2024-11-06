@@ -18,6 +18,8 @@ use stylus_sdk::{
 sol_interface! {
     interface ISeabrick {
         function mint(address to) external returns (uint256);
+        function mintBatch(address to, uint8 amount) external;
+        function totalSupply() external returns (uint256);
     }
 
     interface IERC20 {
@@ -57,6 +59,9 @@ sol! {
 
     /// Error when claiming
     error ClaimFailed();
+
+    /// Error when setting price as zero
+    error ZeroPrice();
 }
 
 #[derive(SolidityError)]
@@ -64,6 +69,7 @@ pub enum MarketError {
     PaymentFailed(PaymentFailed),
     MismatchAggregators(MismatchAggregators),
     ClaimFailed(ClaimFailed),
+    ZeroPrice(ZeroPrice),
 }
 
 sol_storage! {
@@ -101,6 +107,56 @@ sol_storage! {
     }
 }
 
+impl Market {
+    pub fn get_amount_price(&mut self, amount: u8, name: FixedBytes<32>) -> Result<U256, Vec<u8>> {
+        let payment_token = IERC20::new(self.price_feeds.get(name).token.get());
+        let oracle = AggregatorV3Interface::new(self.price_feeds.get(name).agregator_address.get());
+
+        // Get latest answer price
+        let latest_answer =
+            U256::from_limbs(oracle.latest_round_data(Call::new_in(self))?.1.into_limbs());
+
+        let oracle_decimals = U256::from(oracle.decimals(Call::new_in(self))?);
+
+        let payment_decimals = U256::from(payment_token.decimals(Call::new_in(self))?);
+
+        // Scaled price
+        let usd_price = self.price.get()
+            * U256::from(10).pow(payment_decimals)
+            * U256::from(10).pow(oracle_decimals);
+
+        let amount_need = usd_price.div_ceil(latest_answer);
+
+        Ok(amount_need * U256::from(amount))
+    }
+
+    pub fn set_aggregators_internal(
+        &mut self,
+        names: Vec<FixedBytes<32>>,
+        agregators: Vec<Address>,
+        tokens: Vec<Address>,
+    ) -> Result<(), Vec<u8>> {
+        // Set agregators info
+        if names.len() != agregators.len() || names.len() != tokens.len() {
+            return Err(MarketError::MismatchAggregators(MismatchAggregators {}).into());
+        }
+
+        for i in 0..names.len() {
+            let mut map_aggregator = self.price_feeds.setter(names[i]);
+            map_aggregator.agregator_address.set(agregators[i]);
+            map_aggregator.token.set(tokens[i]);
+
+            evm::log(AggregatorAdded {
+                name: names[i],
+                aggregator: agregators[i],
+                token: tokens[i],
+            });
+        }
+
+        Ok(())
+    }
+}
+
 #[public]
 #[inherit(Ownable)]
 impl Market {
@@ -124,22 +180,8 @@ impl Market {
         // Set NFT token contract
         self.nft_token.set(nft_token);
 
-        // Set agregators info
-        if names.len() != agregators.len() || names.len() != tokens.len() {
-            return Err(MarketError::MismatchAggregators(MismatchAggregators {}).into());
-        }
-
-        for i in 0..names.len() {
-            let mut map_aggregator = self.price_feeds.setter(names[i]);
-            map_aggregator.agregator_address.set(agregators[i]);
-            map_aggregator.token.set(tokens[i]);
-
-            evm::log(AggregatorAdded {
-                name: names[i],
-                aggregator: agregators[i],
-                token: tokens[i],
-            });
-        }
+        // Add the agregators
+        self.set_aggregators_internal(names, agregators, tokens)?;
 
         evm::log(SaleDetails {
             price,
@@ -152,30 +194,42 @@ impl Market {
         Ok(())
     }
 
-    pub fn buy(&mut self, buyer: Address, name: FixedBytes<32>) -> Result<(), Vec<u8>> {
+    pub fn set_agregators(
+        &mut self,
+        names: Vec<FixedBytes<32>>,
+        agregators: Vec<Address>,
+        tokens: Vec<Address>,
+    ) -> Result<(), Vec<u8>> {
+        self.ownable.only_owner()?;
+
+        self.set_aggregators_internal(names, agregators, tokens)?;
+
+        Ok(())
+    }
+
+    pub fn set_price(&mut self, price: U256) -> Result<(), Vec<u8>> {
+        self.ownable.only_owner()?;
+
+        if price == U256::ZERO {
+            return Err(MarketError::ZeroPrice(ZeroPrice {}).into());
+        }
+
+        // Set NFT price
+        self.price.set(price);
+
+        Ok(())
+    }
+
+    pub fn buy(&mut self, buyer: Address, name: FixedBytes<32>, amount: u8) -> Result<(), Vec<u8>> {
         let payment_token = IERC20::new(self.price_feeds.get(name).token.get());
-        let oracle = AggregatorV3Interface::new(self.price_feeds.get(name).agregator_address.get());
 
-        // Get latest answer price
-        let latest_answer =
-            U256::from_limbs(oracle.latest_round_data(Call::new_in(self))?.1.into_limbs());
-
-        let oracle_decimals = U256::from(oracle.decimals(Call::new_in(self))?);
-
-        let payment_decimals = U256::from(payment_token.decimals(Call::new_in(self))?);
-
-        // Scaled price
-        let usd_price = self.price.get()
-            * U256::from(10).pow(payment_decimals)
-            * U256::from(10).pow(oracle_decimals);
-
-        let amount_need = usd_price.div_ceil(latest_answer);
+        let amount_needed = self.get_amount_price(amount, name)?;
 
         let success = payment_token.transfer_from(
             Call::new_in(self),
             buyer,
             contract::address(),
-            amount_need,
+            amount_needed,
         )?;
         if !success {
             return Err(MarketError::PaymentFailed(PaymentFailed {}).into());
@@ -185,19 +239,34 @@ impl Market {
         let collected = self.total_collected.get(payment_token.address);
         self.total_collected
             .setter(payment_token.address)
-            .set(collected + amount_need);
+            .set(collected + amount_needed);
 
         let seabrick = ISeabrick::new(self.nft_token.get());
 
-        // Mint the token to the buyer address
-        let id = seabrick.mint(Call::new_in(self), buyer)?;
+        if amount == 1 {
+            // Mint the token to the buyer address
+            let id = seabrick.mint(Call::new_in(self), buyer)?;
 
-        evm::log(Buy {
-            buyer,
-            id,
-            amountSpent: amount_need,
-            aggregator: name,
-        });
+            evm::log(Buy {
+                buyer,
+                id,
+                amountSpent: amount_needed,
+                aggregator: name,
+            });
+        } else {
+            let id_init = (seabrick.total_supply(Call::new_in(self))?) + U256::from(1u8);
+
+            seabrick.mint_batch(Call::new_in(self), buyer, amount)?;
+
+            for i in 0..amount.into() {
+                evm::log(Buy {
+                    buyer,
+                    id: id_init + U256::from(i),
+                    amountSpent: amount_needed,
+                    aggregator: name,
+                });
+            }
+        }
 
         Ok(())
     }

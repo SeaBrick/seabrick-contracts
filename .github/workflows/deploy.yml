@@ -23,7 +23,10 @@ jobs:
         run: rustup target add wasm32-unknown-unknown
 
       - name: Install Cargo Stylus
-        run: cargo install --force cargo-stylus cargo-stylus-check
+        run: cargo install --force cargo-stylus --version 0.5.3
+
+      - name: Install Cargo Stylus Check
+        run: cargo install --force cargo-stylus-check --version 0.4.2
 
       - name: Deploy the contract seabrick NFT
         working-directory: ./seabrick-nft
