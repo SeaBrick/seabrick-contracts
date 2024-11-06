@@ -28,6 +28,10 @@ sol_interface! {
         function transferFrom(address from, address to, uint256 value) external returns (bool);
     }
 
+    interface Ownership {
+        function owner() external view returns (address);
+    }
+
 }
 
 sol_interface! {
@@ -162,6 +166,7 @@ impl Market {
 impl Market {
     pub fn initialization(
         &mut self,
+        ownership: Address,
         price: U256,
         nft_token: Address,
         names: Vec<FixedBytes<32>>,
@@ -172,7 +177,7 @@ impl Market {
         self.init._check_init()?;
 
         // Set contract owner/claimer using the initializer deployer
-        self.ownable._transfer_ownership(msg::sender());
+        self.ownable.set_ownership_contract(ownership);
 
         // Set NFT price
         self.price.set(price);
