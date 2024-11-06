@@ -33,3 +33,6 @@ jobs:
 
       - name: Build and Test - Market
         run: ./ci/build.sh --path ./seabrick-market/
+
+      - name: Build and Test - Ownership
+        run: ./ci/build.sh --path ./ownership/

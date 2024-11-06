@@ -26,8 +26,11 @@ jobs:
       - name: Install Cargo Stylus
         run: cargo install --force cargo-stylus cargo-stylus-check
 
-      - name: Run Stylus check NFT
+      - name: Run Stylus check - NFT
         run: ./ci/stylus-check.sh --path ./seabrick-nft/
 
-      - name: Run Stylus check Market
+      - name: Run Stylus check - Market
         run: ./ci/stylus-check.sh --path ./seabrick-market/
+
+      - name: Run Stylus check - Ownership
+        run: ./ci/stylus-check.sh --path ./ownership/
