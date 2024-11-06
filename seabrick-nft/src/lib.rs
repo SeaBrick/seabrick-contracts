@@ -62,12 +62,15 @@ pub enum SeabrickError {
 #[public]
 #[inherit(Erc721<SeabrickParams>, Ownable)]
 impl Seabrick {
-    pub fn initialization(&mut self, owner: Address) -> Result<(), InitializationError> {
+    pub fn initialization(
+        &mut self,
+        ownership_contract: Address,
+    ) -> Result<(), InitializationError> {
         // Check if already init. Revert if already init
         self.init._check_init()?;
 
-        // Set contract owner
-        self.ownable._transfer_ownership(owner);
+        // Set contract ownership contract address
+        self.ownable.set_ownership_contract(ownership_contract);
 
         // Change contract state to already initialized
         self.init._set_init(true);

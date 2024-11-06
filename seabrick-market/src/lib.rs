@@ -161,7 +161,7 @@ impl Market {
 impl Market {
     pub fn initialization(
         &mut self,
-        ownership: Address,
+        ownership_contract: Address,
         price: U256,
         nft_token: Address,
         names: Vec<FixedBytes<32>>,
@@ -171,8 +171,8 @@ impl Market {
         // Check if already init. Revert if already init
         self.init._check_init()?;
 
-        // Set contract owner/claimer using the initializer deployer
-        self.ownable.set_ownership_contract(ownership);
+        // Set contract ownership contract address
+        self.ownable.set_ownership_contract(ownership_contract);
 
         // Set NFT price
         self.price.set(price);
