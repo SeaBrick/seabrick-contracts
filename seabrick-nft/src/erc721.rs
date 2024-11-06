@@ -9,8 +9,8 @@
 use alloc::{string::String, vec, vec::Vec};
 use alloy_primitives::{Address, FixedBytes, U256};
 use alloy_sol_types::sol;
-use core::{borrow::BorrowMut, marker::PhantomData};
-use stylus_sdk::{abi::Bytes, evm, msg, prelude::*};
+use core::marker::PhantomData;
+use stylus_sdk::{evm, msg, prelude::*};
 
 pub trait Erc721Params {
     /// Immutable NFT name.
@@ -55,8 +55,6 @@ sol! {
     error NotApproved(address owner, address spender, uint256 token_id);
     // Attempt to transfer token id to the Zero address
     error TransferToZero(uint256 token_id);
-    // The receiver address refused to receive the specified token id
-    error ReceiverRefused(address receiver, uint256 token_id, bytes4 returned);
 }
 
 /// Represents the ways methods may fail.
@@ -66,19 +64,7 @@ pub enum Erc721Error {
     NotOwner(NotOwner),
     NotApproved(NotApproved),
     TransferToZero(TransferToZero),
-    ReceiverRefused(ReceiverRefused),
 }
-
-// External interfaces
-sol_interface! {
-    /// Allows calls to the `onERC721Received` method of other contracts implementing `IERC721TokenReceiver`.
-    interface IERC721TokenReceiver {
-        function onERC721Received(address operator, address from, uint256 token_id, bytes data) external returns(bytes4);
-    }
-}
-
-/// Selector for `onERC721Received`, which is returned by contracts implementing `IERC721TokenReceiver`.
-const ERC721_TOKEN_RECEIVER_ID: u32 = 0x150b7a02;
 
 // These methods aren't external, but are helpers used by external methods.
 // Methods marked as "pub" here are usable outside of the erc721 module (i.e. they're callable from lib.rs).
@@ -158,51 +144,6 @@ impl<T: Erc721Params> Erc721<T> {
         Ok(())
     }
 
-    /// Calls `onERC721Received` on the `to` address if it is a contract.
-    /// Otherwise it does nothing
-    fn call_receiver<S: TopLevelStorage>(
-        storage: &mut S,
-        token_id: U256,
-        from: Address,
-        to: Address,
-        data: Vec<u8>,
-    ) -> Result<(), Erc721Error> {
-        if to.has_code() {
-            let receiver = IERC721TokenReceiver::new(to);
-            let received = receiver
-                .on_erc_721_received(&mut *storage, msg::sender(), from, token_id, data.into())
-                .map_err(|_e| {
-                    Erc721Error::ReceiverRefused(ReceiverRefused {
-                        receiver: receiver.address,
-                        token_id,
-                        returned: FixedBytes(0_u32.to_be_bytes()),
-                    })
-                })?
-                .0;
-
-            if u32::from_be_bytes(received) != ERC721_TOKEN_RECEIVER_ID {
-                return Err(Erc721Error::ReceiverRefused(ReceiverRefused {
-                    receiver: receiver.address,
-                    token_id,
-                    returned: FixedBytes(received),
-                }));
-            }
-        }
-        Ok(())
-    }
-
-    /// Transfers and calls `onERC721Received`
-    pub fn safe_transfer<S: TopLevelStorage + BorrowMut<Self>>(
-        storage: &mut S,
-        token_id: U256,
-        from: Address,
-        to: Address,
-        data: Vec<u8>,
-    ) -> Result<(), Erc721Error> {
-        storage.borrow_mut().transfer(token_id, from, to)?;
-        Self::call_receiver(storage, token_id, from, to, data)
-    }
-
     /// Mints a new token and transfers it to `to`
     pub fn mint(&mut self, to: Address) -> Result<(), Erc721Error> {
         let new_token_id = self.total_supply.get();
@@ -257,40 +198,6 @@ impl<T: Erc721Params> Erc721<T> {
         Ok(owner)
     }
 
-    /// Transfers an NFT, but only after checking the `to` address can receive the NFT.
-    /// It includes additional data for the receiver.
-    #[selector(name = "safeTransferFrom")]
-    pub fn safe_transfer_from_with_data<S: TopLevelStorage + BorrowMut<Self>>(
-        storage: &mut S,
-        from: Address,
-        to: Address,
-        token_id: U256,
-        data: Bytes,
-    ) -> Result<(), Erc721Error> {
-        if to.is_zero() {
-            return Err(Erc721Error::TransferToZero(TransferToZero { token_id }));
-        }
-        storage
-            .borrow_mut()
-            .require_authorized_to_spend(from, token_id)?;
-
-        Self::safe_transfer(storage, token_id, from, to, data.0)
-    }
-
-    /// Equivalent to [`safe_transfer_from_with_data`], but without the additional data.
-    ///
-    /// Note: because Rust doesn't allow multiple methods with the same name,
-    /// we use the `#[selector]` macro attribute to simulate solidity overloading.
-    #[selector(name = "safeTransferFrom")]
-    pub fn safe_transfer_from<S: TopLevelStorage + BorrowMut<Self>>(
-        storage: &mut S,
-        from: Address,
-        to: Address,
-        token_id: U256,
-    ) -> Result<(), Erc721Error> {
-        Self::safe_transfer_from_with_data(storage, from, to, token_id, Bytes(vec![]))
-    }
-
     /// Transfers the NFT.
     pub fn transfer_from(
         &mut self,
@@ -303,6 +210,27 @@ impl<T: Erc721Params> Erc721<T> {
         }
         self.require_authorized_to_spend(from, token_id)?;
         self.transfer(token_id, from, to)?;
+        Ok(())
+    }
+
+    pub fn transfer_batch(
+        &mut self,
+        from: Address,
+        to: Address,
+        token_ids: Vec<U256>,
+    ) -> Result<(), Erc721Error> {
+        if to.is_zero() {
+            return Err(Erc721Error::TransferToZero(TransferToZero {
+                token_id: U256::MAX,
+            }));
+        }
+
+        // It will fail the transaction if some step fail
+        for token_id in token_ids {
+            self.require_authorized_to_spend(from, token_id)?;
+            self.transfer(token_id, from, to)?;
+        }
+
         Ok(())
     }
 

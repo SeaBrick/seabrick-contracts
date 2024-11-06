@@ -28,14 +28,20 @@ jobs:
       - name: Install Cargo Stylus Check
         run: cargo install --force cargo-stylus-check --version 0.4.2
 
-      - name: Deploy the contract seabrick NFT
+      - name: Deploy the contract Seabrick NFT
         working-directory: ./seabrick-nft
         env:
           PRIVATE_KEY: ${{ secrets.PRIVATE_KEY }}
         run: cargo stylus deploy --private-key=$PRIVATE_KEY
 
-      - name: Deploy the contract seabrick Market
+      - name: Deploy the contract Seabrick Market
         working-directory: ./seabrick-market
+        env:
+          PRIVATE_KEY: ${{ secrets.PRIVATE_KEY }}
+        run: cargo stylus deploy --private-key=$PRIVATE_KEY
+
+      - name: Deploy the contract Ownership
+        working-directory: ./ownership
         env:
           PRIVATE_KEY: ${{ secrets.PRIVATE_KEY }}
         run: cargo stylus deploy --private-key=$PRIVATE_KEY

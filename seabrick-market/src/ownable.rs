@@ -1,19 +1,20 @@
 //! Ownable contract.
-//! The logic was based off of: https://github.com/OpenZeppelin/rust-contracts-stylus/blob/main/contracts/src/access/ownable.rs
 
 extern crate alloc;
 
+use alloc::vec::Vec;
 use stylus_sdk::{
     alloy_primitives::Address,
     alloy_sol_types::sol,
-    evm, msg,
-    prelude::{public, sol_storage, SolidityError},
+    call::Call,
+    msg,
+    prelude::{public, sol_interface, sol_storage, SolidityError},
 };
 
-sol! {
-    /// Emitted when ownership gets transferred between accounts.
-    #[allow(missing_docs)]
-    event OwnershipTransferred(address indexed previous_owner, address indexed new_owner);
+sol_interface! {
+    interface Ownership {
+        function owner() external view returns (address);
+    }
 }
 
 sol! {
@@ -23,33 +24,62 @@ sol! {
     #[derive(Debug)]
     #[allow(missing_docs)]
     error OwnableUnauthorizedAccount(address account);
-    /// The owner is not a valid owner account. (eg. `Address::ZERO`)
-    ///
-    /// * `owner` - Account that's not allowed to become the owner.
+
+    /// * `ownership_contract` - Address that's not allowed to become the ownership contract.
     #[derive(Debug)]
     #[allow(missing_docs)]
-    error OwnableInvalidOwner(address owner);
+    error InvalidOwnership(address ownership_contract);
 }
 
 #[derive(SolidityError, Debug)]
 pub enum OwnableError {
     /// The caller account is not authorized to perform an operation.
     UnauthorizedAccount(OwnableUnauthorizedAccount),
-    /// The owner is not a valid owner account. (eg. `Address::ZERO`)
-    InvalidOwner(OwnableInvalidOwner),
+    /// The ownership address is not a valid ownership contract
+    InvalidOwnership(InvalidOwnership),
 }
 
 sol_storage! {
     pub struct Ownable {
-        address _owner;
+        // Ownership contract address
+        address _ownership;
     }
 }
 
 #[public]
 impl Ownable {
     /// Returns the address of the current owner.
-    pub fn owner(&self) -> Address {
-        self._owner.get()
+    pub fn owner(&self) -> Result<Address, Vec<u8>> {
+        let owner_address = Ownership::new(self._ownership.get()).owner(Call::new())?;
+        Ok(owner_address)
+    }
+
+    pub fn change_ownership_contract(&mut self, new_address: Address) -> Result<(), Vec<u8>> {
+        self.only_owner()?;
+
+        // We check the owner on target contract to avoid losing the ownership
+        let target_owner_address = Ownership::new(new_address).owner(Call::new())?;
+
+        // If target ownership address is not a contract, it will fail the transaction
+        // If target ownership address owner is not the same that the current one
+        //    we fail the transaction to avoid losing the ownership of the contracts
+        if target_owner_address != self.owner()? {
+            return Err(OwnableError::InvalidOwnership(InvalidOwnership {
+                ownership_contract: target_owner_address,
+            })
+            .into());
+        }
+
+        // Change the ownership contract address
+        self._ownership.set(new_address);
+
+        Ok(())
+    }
+}
+
+impl Ownable {
+    pub fn set_ownership_contract(&mut self, address: Address) {
+        self._ownership.set(address)
     }
 
     /// Checks if the [`msg::sender`] is set as the owner.
@@ -58,74 +88,13 @@ impl Ownable {
     ///
     /// If called by any account other than the owner, then the error
     /// [`Error::UnauthorizedAccount`] is returned.
-    pub fn only_owner(&self) -> Result<(), OwnableError> {
+    pub fn only_owner(&self) -> Result<(), Vec<u8>> {
         let account = msg::sender();
-        if self.owner() != account {
-            return Err(OwnableError::UnauthorizedAccount(
-                OwnableUnauthorizedAccount { account },
-            ));
+        if self.owner()? != account {
+            return Err(
+                OwnableError::UnauthorizedAccount(OwnableUnauthorizedAccount { account }).into(),
+            );
         }
-
         Ok(())
-    }
-
-    /// Transfers ownership of the contract to a new account (`new_owner`). Can
-    /// only be called by the current owner.
-    ///
-    /// # Arguments
-    ///
-    /// * `&mut self` - Write access to the contract's state.
-    /// * `new_owner` - The next owner of this contract.
-    ///
-    /// # Errors
-    ///
-    /// If `new_owner` is the zero address, then the error
-    /// [`OwnableInvalidOwner`] is returned.
-    pub fn transfer_ownership(&mut self, new_owner: Address) -> Result<(), OwnableError> {
-        self.only_owner()?;
-
-        if new_owner == Address::ZERO {
-            return Err(OwnableError::InvalidOwner(OwnableInvalidOwner {
-                owner: Address::ZERO,
-            }));
-        }
-
-        self._transfer_ownership(new_owner);
-
-        Ok(())
-    }
-
-    /// Leaves the contract without owner. It will not be possible to call
-    /// [`Self::only_owner`] functions. Can only be called by the current owner.
-    ///
-    /// NOTE: Renouncing ownership will leave the contract without an owner,
-    /// thereby disabling any functionality that is only available to the owner.
-    ///
-    /// # Errors
-    ///
-    /// If not called by the owner, then the error
-    /// [`Error::UnauthorizedAccount`] is returned.
-    pub fn renounce_ownership(&mut self) -> Result<(), OwnableError> {
-        self.only_owner()?;
-        self._transfer_ownership(Address::ZERO);
-        Ok(())
-    }
-}
-
-impl Ownable {
-    /// Transfers ownership of the contract to a new account (`new_owner`).
-    /// Internal function without access restriction.
-    ///
-    /// # Arguments
-    ///
-    /// * `&mut self` - Write access to the contract's state.
-    /// * `new_owner` - Account that's gonna be the next owner.
-    pub fn _transfer_ownership(&mut self, new_owner: Address) {
-        let previous_owner = self._owner.get();
-        self._owner.set(new_owner);
-        evm::log(OwnershipTransferred {
-            previous_owner,
-            new_owner,
-        });
     }
 }
