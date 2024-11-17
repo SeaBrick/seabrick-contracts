@@ -255,6 +255,7 @@ impl Market {
             });
         } else {
             let id_init = (seabrick.total_supply(Call::new_in(self))?) + U256::from(1u8);
+            let individual_price = amount_needed.div_ceil(U256::from(amount));
 
             seabrick.mint_batch(Call::new_in(self), buyer, amount)?;
 
@@ -262,7 +263,7 @@ impl Market {
                 evm::log(Buy {
                     buyer,
                     id: id_init + U256::from(i),
-                    amountSpent: amount_needed,
+                    amountSpent: individual_price,
                     aggregator: name,
                 });
             }
