@@ -46,14 +46,21 @@ sol! {
     /// Tokens claimed
     event Claimed(address token, uint256 amount, bytes32 aggregator, address vault);
 
-    event SaleDetails(address nftAddress, uint256 price);
+    // Initial sale detail
+    event SaleDetails(address nftAddress, address ownershipContract, address claimVault, uint256 price);
+
+    // New price added
+    event PriceAdded(uint256 newPrice);
+
+    // New Claim address added
+    event ClaimVaultAdded(address newClaimVault);
 }
 
 sol! {
     /// NFT not bought
     error PaymentFailed();
 
-    /// Mismatch on aggregators data provided
+    /// Mismatch on agPriceAddedgregators data provided
     error MismatchAggregators();
 
     /// Error when claiming
@@ -201,6 +208,8 @@ impl Market {
         evm::log(SaleDetails {
             price,
             nftAddress: nft_token,
+            claimVault: claim_vault,
+            ownershipContract: ownership_contract,
         });
 
         // Change contract state to already initialized
@@ -232,6 +241,8 @@ impl Market {
         // Set NFT price
         self.price.set(price);
 
+        evm::log(PriceAdded { newPrice: price });
+
         Ok(())
     }
 
@@ -244,6 +255,10 @@ impl Market {
 
         // Set new claim vault address
         self.claim_vault.set(vault);
+
+        evm::log(ClaimVaultAdded {
+            newClaimVault: vault,
+        });
 
         Ok(())
     }
