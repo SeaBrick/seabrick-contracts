@@ -11,7 +11,7 @@ use stylus_sdk::{
     alloy_primitives::{Address, FixedBytes, U256},
     alloy_sol_types::sol,
     call::Call,
-    contract, evm, msg,
+    contract, evm,
     prelude::{entrypoint, public, sol_interface, sol_storage, SolidityError},
 };
 
@@ -44,7 +44,7 @@ sol! {
     event Buy(address buyer, uint256 id, uint256 amountSpent, bytes32 aggregator);
 
     /// Tokens claimed
-    event Claimed(address token, uint256 amount, bytes32 aggregator);
+    event Claimed(address token, uint256 amount, bytes32 aggregator, address vault);
 
     event SaleDetails(address nftAddress, uint256 price);
 }
@@ -61,6 +61,12 @@ sol! {
 
     /// Error when setting price as zero
     error ZeroPrice();
+
+    /// Error when setting Claim Vault Zero Address
+    error VaultZeroAddress();
+
+    /// Error when amount to Buy is zero
+    error ZeroBuyAmount();
 }
 
 #[derive(SolidityError)]
@@ -69,6 +75,8 @@ pub enum MarketError {
     MismatchAggregators(MismatchAggregators),
     ClaimFailed(ClaimFailed),
     ZeroPrice(ZeroPrice),
+    VaultZeroAddress(VaultZeroAddress),
+    ZeroBuyAmount(ZeroBuyAmount),
 }
 
 sol_storage! {
@@ -89,6 +97,9 @@ sol_storage! {
 
         /// Contract NFT address
         address nft_token;
+
+        /// Vault address where the tokens claimed will go to
+        address claim_vault;
 
         /// Mapping for hashed names. Example keccak("ETH/USD") to his price feed aggregator address.
         /// Of course you can add any oracle address, but this code is intended to work only for USD based oracles like
@@ -164,6 +175,7 @@ impl Market {
         ownership_contract: Address,
         price: U256,
         nft_token: Address,
+        claim_vault: Address,
         names: Vec<FixedBytes<32>>,
         agregators: Vec<Address>,
         tokens: Vec<Address>,
@@ -179,6 +191,9 @@ impl Market {
 
         // Set NFT token contract
         self.nft_token.set(nft_token);
+
+        // Set the claim vault address (when claiming, the tokens will be transfer to this address)
+        self.claim_vault.set(claim_vault);
 
         // Add the agregators
         self.set_aggregators_internal(names, agregators, tokens)?;
@@ -220,7 +235,24 @@ impl Market {
         Ok(())
     }
 
+    pub fn set_vault(&mut self, vault: Address) -> Result<(), Vec<u8>> {
+        self.ownable.only_owner()?;
+
+        if vault == Address::ZERO {
+            return Err(MarketError::ZeroPrice(ZeroPrice {}).into());
+        }
+
+        // Set new claim vault address
+        self.claim_vault.set(vault);
+
+        Ok(())
+    }
+
     pub fn buy(&mut self, buyer: Address, name: FixedBytes<32>, amount: u8) -> Result<(), Vec<u8>> {
+        if amount == 0 {
+            return Err(MarketError::ZeroBuyAmount(ZeroBuyAmount {}).into());
+        }
+
         let payment_token = IERC20::new(self.price_feeds.get(name).token.get());
 
         let amount_needed = self.get_amount_price(amount, name)?;
@@ -273,8 +305,10 @@ impl Market {
     }
 
     pub fn claim(&mut self, name: FixedBytes<32>) -> Result<(), Vec<u8>> {
-        self.ownable.only_owner()?;
+        // Anyone can call this function since the Claim Vault address is defined
+        // And the funds will be sent to that address
 
+        let claim_vault = self.claim_vault.get();
         let claim_token = IERC20::new(self.price_feeds.get(name).token.get());
         let amount_collected = self.total_collected.get(claim_token.address);
 
@@ -283,7 +317,7 @@ impl Market {
             .setter(claim_token.address)
             .set(U256::ZERO);
 
-        let success = claim_token.transfer(Call::new_in(self), msg::sender(), amount_collected)?;
+        let success = claim_token.transfer(Call::new_in(self), claim_vault, amount_collected)?;
         if !success {
             return Err(MarketError::ClaimFailed(ClaimFailed {}).into());
         }
@@ -292,6 +326,7 @@ impl Market {
             token: claim_token.address,
             amount: amount_collected,
             aggregator: name,
+            vault: claim_vault,
         });
 
         Ok(())
