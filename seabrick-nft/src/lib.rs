@@ -49,6 +49,9 @@ sol_storage! {
 }
 
 sol! {
+    /// Seabrick Details
+    event SeabrickDetails(address ownershipContract);
+
     event MinterUpdated(address minter, bool status);
 
     error OnlyMinters();
@@ -74,6 +77,10 @@ impl Seabrick {
 
         // Change contract state to already initialized
         self.init._set_init(true);
+
+        evm::log(SeabrickDetails {
+            ownershipContract: ownership_contract,
+        });
 
         Ok(())
     }
