@@ -11,7 +11,7 @@ use stylus_sdk::{
     alloy_primitives::{Address, FixedBytes, U256},
     alloy_sol_types::sol,
     call::Call,
-    contract, evm,
+    evm,
     prelude::{entrypoint, public, sol_interface, sol_storage, SolidityError},
 };
 
@@ -43,8 +43,8 @@ sol! {
     /// Emitted when contract sell a NFT
     event Buy(address buyer, uint256 id, uint256 amountSpent, bytes32 aggregator);
 
-    /// Tokens claimed
-    event Claimed(address token, uint256 amount, bytes32 aggregator, address vault);
+    /// Tokens Collected and sent to vault address
+    event Collected(address token, uint256 amount, bytes32 aggregator, address vault);
 
     // Initial sale detail
     event SaleDetails(address nftAddress, address ownershipContract, address claimVault, uint256 price);
@@ -63,9 +63,6 @@ sol! {
     /// Mismatch on agPriceAddedgregators data provided
     error MismatchAggregators();
 
-    /// Error when claiming
-    error ClaimFailed();
-
     /// Error when setting price as zero
     error ZeroPrice();
 
@@ -80,7 +77,6 @@ sol! {
 pub enum MarketError {
     PaymentFailed(PaymentFailed),
     MismatchAggregators(MismatchAggregators),
-    ClaimFailed(ClaimFailed),
     ZeroPrice(ZeroPrice),
     VaultZeroAddress(VaultZeroAddress),
     ZeroBuyAmount(ZeroBuyAmount),
@@ -112,9 +108,6 @@ sol_storage! {
         /// Of course you can add any oracle address, but this code is intended to work only for USD based oracles like
         /// ETH/USD, ARB/USD, etc.
         mapping(bytes32 => AggregatorInfo) price_feeds;
-
-        /// Total tokens collected (total currency)
-        mapping(address => uint256) total_collected;
 
         #[borrow]
         Initialization init;
@@ -200,6 +193,9 @@ impl Market {
         self.nft_token.set(nft_token);
 
         // Set the claim vault address (when claiming, the tokens will be transfer to this address)
+        if claim_vault == Address::ZERO {
+            return Err(MarketError::VaultZeroAddress(VaultZeroAddress {}).into());
+        }
         self.claim_vault.set(claim_vault);
 
         // Add the agregators
@@ -250,7 +246,7 @@ impl Market {
         self.ownable.only_owner()?;
 
         if vault == Address::ZERO {
-            return Err(MarketError::ZeroPrice(ZeroPrice {}).into());
+            return Err(MarketError::VaultZeroAddress(VaultZeroAddress {}).into());
         }
 
         // Set new claim vault address
@@ -272,21 +268,23 @@ impl Market {
 
         let amount_needed = self.get_amount_price(amount, name)?;
 
-        let success = payment_token.transfer_from(
-            Call::new_in(self),
-            buyer,
-            contract::address(),
-            amount_needed,
-        )?;
+        // Transfer the tokens (ERC20) to the claim vault defined
+        let claim_vault = self.claim_vault.get();
+
+        let success =
+            payment_token.transfer_from(Call::new_in(self), buyer, claim_vault, amount_needed)?;
         if !success {
             return Err(MarketError::PaymentFailed(PaymentFailed {}).into());
         }
 
-        // Increasing the total collected by this payment token
-        let collected = self.total_collected.get(payment_token.address);
-        self.total_collected
-            .setter(payment_token.address)
-            .set(collected + amount_needed);
+        // Emit the event Claim event (we can change the event name)
+        // total_collected
+        evm::log(Collected {
+            token: payment_token.address,
+            amount: amount_needed,
+            aggregator: name,
+            vault: claim_vault,
+        });
 
         let seabrick = ISeabrick::new(self.nft_token.get());
 
@@ -315,34 +313,6 @@ impl Market {
                 });
             }
         }
-
-        Ok(())
-    }
-
-    pub fn claim(&mut self, name: FixedBytes<32>) -> Result<(), Vec<u8>> {
-        // Anyone can call this function since the Claim Vault address is defined
-        // And the funds will be sent to that address
-
-        let claim_vault = self.claim_vault.get();
-        let claim_token = IERC20::new(self.price_feeds.get(name).token.get());
-        let amount_collected = self.total_collected.get(claim_token.address);
-
-        // Decreasing the total collected by this payment token to ZERO since everything was claimed
-        self.total_collected
-            .setter(claim_token.address)
-            .set(U256::ZERO);
-
-        let success = claim_token.transfer(Call::new_in(self), claim_vault, amount_collected)?;
-        if !success {
-            return Err(MarketError::ClaimFailed(ClaimFailed {}).into());
-        }
-
-        evm::log(Claimed {
-            token: claim_token.address,
-            amount: amount_collected,
-            aggregator: name,
-            vault: claim_vault,
-        });
 
         Ok(())
     }
